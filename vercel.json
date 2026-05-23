@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "app/api/github/webhook/route.js": {
+      "maxDuration": 10
+    },
+    "app/api/analyze/route.js": {
+      "maxDuration": 30
+    },
+    "app/api/stats/route.js": {
+      "maxDuration": 10
+    },
+    "app/api/setup/route.js": {
+      "maxDuration": 10
+    }
+  }
+}
