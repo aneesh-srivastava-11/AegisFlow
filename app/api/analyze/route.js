@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
-import { analyzeCode, analyzeRawCode } from '@/lib/gemini';
-import { createOctokitWithPAT, getPRDiff, postPRReview } from '@/lib/github';
+import { analyzeCode } from '@/lib/gemini';
+import { createOctokitWithPAT, getPRDiff } from '@/lib/github';
+import { getMRDiff } from '@/lib/gitlab';
 import { formatForStorage, calculateRiskScore } from '@/lib/vulnerability-detector';
 import { getCollection } from '@/lib/mongodb';
 import { checkRateLimit, getClientIP, rateLimitHeaders } from '@/lib/rate-limiter';
 
 /**
  * Manual Analysis Endpoint
- * Analyze code or a GitHub PR URL on demand
+ * Analyze a GitHub PR or GitLab MR URL on demand
  * 
  * POST /api/analyze
- * Body: { code: string, language: string } OR { prUrl: string }
+ * Body: { prUrl: string }
  */
 export async function POST(request) {
   const startTime = Date.now();
@@ -41,32 +42,32 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { code, language, prUrl } = body;
+    const { prUrl } = body;
 
-    // Mode 1: Analyze a GitHub PR URL
-    if (prUrl) {
-      const response = await analyzePR(prUrl, startTime);
-      // Copy headers to the response
-      for (const [key, value] of Object.entries(headers)) {
-        response.headers.set(key, value);
-      }
-      return response;
+    if (!prUrl) {
+      return NextResponse.json(
+        { error: 'Provide a valid "prUrl" (GitHub PR or GitLab MR)' },
+        { status: 400, headers }
+      );
     }
 
-    // Mode 2: Analyze raw code
-    if (code) {
-      const response = await analyzeRaw(code, language || 'JavaScript', startTime);
-      // Copy headers to the response
-      for (const [key, value] of Object.entries(headers)) {
-        response.headers.set(key, value);
-      }
-      return response;
+    let response;
+    if (prUrl.includes('github.com')) {
+      response = await analyzePR(prUrl, startTime);
+    } else if (prUrl.includes('gitlab.com')) {
+      response = await analyzeMR(prUrl, startTime);
+    } else {
+      return NextResponse.json(
+        { error: 'Unsupported URL. Only GitHub PR and GitLab MR URLs are supported.' },
+        { status: 400, headers }
+      );
     }
 
-    return NextResponse.json(
-      { error: 'Provide either "code" with "language" or "prUrl"' },
-      { status: 400, headers }
-    );
+    // Copy headers to the response
+    for (const [key, value] of Object.entries(headers)) {
+      response.headers.set(key, value);
+    }
+    return response;
   } catch (error) {
     console.error('[Analyze] Error:', error);
     return NextResponse.json(
@@ -128,7 +129,7 @@ async function analyzePR(prUrl, startTime) {
       author: 'manual',
       url: prUrl,
     });
-    doc.source = 'manual';
+    doc.source = 'github';
     await analyses.insertOne(doc);
   } catch (dbError) {
     console.warn('[Analyze] Failed to store in MongoDB:', dbError.message);
@@ -137,48 +138,60 @@ async function analyzePR(prUrl, startTime) {
   return NextResponse.json({
     analysis,
     risk,
-    pr: { owner, repo, pullNumber, url: prUrl },
+    pr: { owner, repo, pullNumber, url: prUrl, source: 'github' },
     processingTimeMs: Date.now() - startTime,
   });
 }
 
 /**
- * Analyze raw code snippet
+ * Analyze a GitLab MR by URL
  */
-async function analyzeRaw(code, language, startTime) {
-  const analysis = await analyzeRawCode(code, language);
+async function analyzeMR(mrUrl, startTime) {
+  // Parse MR URL: https://gitlab.com/group/subgroup/project/-/merge_requests/123
+  const match = mrUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*)\/-\/merge_requests\/(\d+)/);
+  if (!match) {
+    return NextResponse.json(
+      { error: 'Invalid GitLab MR URL. Format: https://gitlab.com/owner/repo/-/merge_requests/123' },
+      { status: 400 }
+    );
+  }
+
+  const [, projectPath, mrIidStr] = match;
+  const mrIid = parseInt(mrIidStr, 10);
+
+  // Fetch GitLab MR diff
+  const { diff, files } = await getMRDiff(projectPath, mrIid);
+
+  if (!diff || diff.trim().length === 0) {
+    return NextResponse.json({
+      analysis: {
+        critical: [], high: [], medium: [], low: [],
+        summary: 'No code changes found in this MR',
+        recommendation: 'APPROVE',
+        scan_time_ms: Date.now() - startTime,
+      },
+      processingTimeMs: Date.now() - startTime,
+    });
+  }
+
+  // Analyze with Gemini
+  const analysis = await analyzeCode(diff, files);
   const risk = calculateRiskScore(analysis);
 
   // Store in MongoDB
   try {
     const analyses = await getCollection('analyses');
-    await analyses.insertOne({
-      repositoryId: 'manual/analysis',
-      pullRequest: {
-        number: 0,
-        title: `Manual ${language} code analysis`,
-        author: 'manual',
-        url: '',
-      },
-      results: {
-        critical: analysis.critical || [],
-        high: analysis.high || [],
-        medium: analysis.medium || [],
-        low: analysis.low || [],
-        summary: analysis.summary,
-        recommendation: analysis.recommendation,
-      },
-      metadata: {
-        languageDetected: language,
-        languagesFound: [language],
-        scanTimeMs: analysis.scan_time_ms,
-        codeLength: code.length,
-      },
-      risk,
-      status: 'completed',
-      source: 'demo',
-      createdAt: new Date(),
+    const doc = formatForStorage(analysis, {
+      owner: projectPath.split('/')[0],
+      repo: projectPath.split('/').slice(1).join('/'),
+      pullNumber: mrIid,
+      title: `Manual analysis of MR #${mrIid}`,
+      author: 'manual',
+      url: mrUrl,
     });
+    doc.source = 'gitlab';
+    doc.repositoryId = projectPath;
+    await analyses.insertOne(doc);
   } catch (dbError) {
     console.warn('[Analyze] Failed to store in MongoDB:', dbError.message);
   }
@@ -186,6 +199,7 @@ async function analyzeRaw(code, language, startTime) {
   return NextResponse.json({
     analysis,
     risk,
+    pr: { owner: projectPath.split('/')[0], repo: projectPath.split('/').slice(1).join('/'), pullNumber: mrIid, url: mrUrl, source: 'gitlab' },
     processingTimeMs: Date.now() - startTime,
   });
 }

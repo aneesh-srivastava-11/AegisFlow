@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -11,15 +10,15 @@ import { useRouter } from 'next/navigation';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
 
-// Premium Theme Colors
+// Theme Colors
 const SEVERITY_COLORS = {
-  CRITICAL: '#ef4444',
-  HIGH: '#f97316',
-  MEDIUM: '#eab308',
-  LOW: '#3b82f6',
+  CRITICAL: '#ff453a',
+  HIGH: '#ff9f0a',
+  MEDIUM: '#ffd60a',
+  LOW: '#64d2ff',
 };
 
-const CHART_COLORS = ['#3b82f6', '#ef4444', '#f97316', '#eab308', '#10b981', '#8b5cf6'];
+const CHART_COLORS = ['#0071e3', '#ff453a', '#ff9f0a', '#ffd60a', '#30d158', '#bf5af2'];
 
 function DashboardContent() {
   const { user, token, loading: authLoading } = useAuth();
@@ -141,17 +140,15 @@ function DashboardContent() {
     { name: 'Low', value: vulnerabilities.low, color: SEVERITY_COLORS.LOW },
   ].filter(d => d.value > 0);
 
-  // Fallback if no issues found to make chart look nice
   const displayPieData = pieData.length > 0 ? pieData : [{ name: 'No Vulnerabilities', value: 1, color: '#10b981' }];
 
-  // Prepare Area Chart Data
   const areaData = dailyTrend && dailyTrend.length > 0 ? dailyTrend : [
     { _id: new Date().toLocaleDateString(), count: 0, vulnerabilities: 0 }
   ];
 
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 60 }}>
-      {/* Top Banner / Actions */}
+      {/* Top Banner */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: '2.25rem', fontWeight: 800 }}>Security Dashboard</h1>
@@ -173,19 +170,13 @@ function DashboardContent() {
             </label>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => fetchData(true)}>
-            🔄 Refresh Now
+            Refresh Now
           </button>
         </div>
       </div>
 
-      {/* Stats Cards (Framer Motion Staggered entrance) */}
-      <motion.div 
-        className="grid-4" 
-        style={{ marginBottom: 24 }}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, staggerChildren: 0.1 }}
-      >
+      {/* Stats Cards */}
+      <div className="grid-4" style={{ marginBottom: 24 }}>
         <div className="stat-card">
           <span className="stat-label">PRs Analyzed</span>
           <span className="stat-value">{overview.totalAnalyses}</span>
@@ -196,7 +187,7 @@ function DashboardContent() {
         </div>
         <div className="stat-card">
           <span className="stat-label">Breaches Prevented</span>
-          <span className="stat-value" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <span className="stat-value" style={{ color: 'var(--critical)' }}>
             {overview.breachesPrevented}
           </span>
         </div>
@@ -204,18 +195,12 @@ function DashboardContent() {
           <span className="stat-label">Avg Scan Time</span>
           <span className="stat-value">{performance.avgScanTimeMs}ms</span>
         </div>
-      </motion.div>
+      </div>
 
       {/* Visual Analytics Row */}
       <div className="grid-2" style={{ marginBottom: 24 }}>
         {/* Severity Pie Chart */}
-        <motion.div 
-          className="card" 
-          style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
+        <div className="card" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: 16 }}>Vulnerability Severity Distribution</h3>
           <div style={{ flex: 1, width: '100%', minHeight: 220 }}>
             {isMounted && (
@@ -242,52 +227,31 @@ function DashboardContent() {
               </ResponsiveContainer>
             )}
           </div>
-        </motion.div>
+        </div>
 
         {/* Scan Trend Area Chart */}
-        <motion.div 
-          className="card" 
-          style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
+        <div className="card" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: 16 }}>Analysis Activity (Last 7 Days)</h3>
           <div style={{ flex: 1, width: '100%', minHeight: 220 }}>
             {isMounted && (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={areaData}>
-                  <defs>
-                    <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorVulns" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" opacity={0.3} />
                   <XAxis dataKey="_id" stroke="var(--text-secondary)" fontSize={12} tickLine={false} />
                   <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} />
                   <Tooltip contentStyle={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
-                  <Area type="monotone" name="PR Scans" dataKey="count" stroke="var(--accent-primary)" fillOpacity={1} fill="url(#colorCount)" />
-                  <Area type="monotone" name="Vulns Found" dataKey="vulnerabilities" stroke="#ef4444" fillOpacity={1} fill="url(#colorVulns)" />
+                  <Area type="monotone" name="PR Scans" dataKey="count" stroke="var(--accent-primary)" fillOpacity={0.06} fill="var(--accent-primary)" />
+                  <Area type="monotone" name="Vulns Found" dataKey="vulnerabilities" stroke="#ef4444" fillOpacity={0.06} fill="#ef4444" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Languages & Detailed Breakdown */}
       <div className="grid-2" style={{ marginBottom: 24 }}>
-        <motion.div 
-          className="card"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
+        <div className="card">
           <h3 style={{ marginBottom: 16 }}>Top Vulnerability Types</h3>
           {topVulnerabilityTypes.length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>No vulnerabilities detected yet</p>
@@ -302,14 +266,9 @@ function DashboardContent() {
               </div>
             ))
           )}
-        </motion.div>
+        </div>
 
-        <motion.div 
-          className="card"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
+        <div className="card">
           <h3 style={{ marginBottom: 16 }}>Languages Analyzed</h3>
           {languageDistribution.length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>No analysis data yet</p>
@@ -322,16 +281,11 @@ function DashboardContent() {
               ))}
             </div>
           )}
-        </motion.div>
+        </div>
       </div>
 
       {/* Paginated Recent Analyses */}
-      <motion.div 
-        className="card"
-        initial={{ opacity: 0, y: 25 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-      >
+      <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ margin: 0 }}>Review Logs</h3>
           {loadingTable && <div className="spinner" style={{ width: 16, height: 16 }} />}
@@ -353,42 +307,36 @@ function DashboardContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  <AnimatePresence mode="popLayout">
-                    {analysesData.items.map((a, i) => (
-                      <motion.tr 
-                        key={a._id || i} 
-                        style={{ borderBottom: '1px solid var(--border-color)' }}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <td style={{ padding: '12px', fontSize: '0.875rem', fontWeight: 600 }}>{a.repositoryId}</td>
-                        <td style={{ padding: '12px' }}>
-                          {a.pullRequest?.url ? (
-                            <a href={a.pullRequest.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
-                              #{a.pullRequest.number} ({a.pullRequest.author})
-                            </a>
-                          ) : (
-                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                              On-Demand Demo
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: '12px' }}>
-                          <span className={`badge badge-${(a.risk?.level || 'CLEAN').toLowerCase()}`} style={{ fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.05em' }}>
-                            {a.risk?.level || 'CLEAN'}
+                  {analysesData.items.map((a, i) => (
+                    <tr 
+                      key={a._id || i} 
+                      style={{ borderBottom: '1px solid var(--border-color)' }}
+                    >
+                      <td style={{ padding: '12px', fontSize: '0.875rem', fontWeight: 600 }}>{a.repositoryId}</td>
+                      <td style={{ padding: '12px' }}>
+                        {a.pullRequest?.url ? (
+                          <a href={a.pullRequest.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
+                            #{a.pullRequest.number} ({a.pullRequest.author})
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            On-Demand Demo
                           </span>
-                        </td>
-                        <td style={{ padding: '12px', fontSize: '0.875rem', fontWeight: 700 }}>{a.risk?.totalIssues || 0}</td>
-                        <td style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{a.metadata?.languageDetected || '—'}</td>
-                        <td style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{a.metadata?.scanTimeMs || 0}ms</td>
-                        <td style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          {a.createdAt ? new Date(a.createdAt).toLocaleString() : '—'}
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span className={`badge badge-${(a.risk?.level || 'CLEAN').toLowerCase()}`} style={{ fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+                          {a.risk?.level || 'CLEAN'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', fontSize: '0.875rem', fontWeight: 700 }}>{a.risk?.totalIssues || 0}</td>
+                      <td style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{a.metadata?.languageDetected || '—'}</td>
+                      <td style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{a.metadata?.scanTimeMs || 0}ms</td>
+                      <td style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {a.createdAt ? new Date(a.createdAt).toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -405,21 +353,21 @@ function DashboardContent() {
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1 || loadingTable}
                   >
-                    ◀ Previous
+                    Previous
                   </button>
                   <button 
                     className="btn btn-secondary btn-sm" 
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === analysesData.pagination.pages || loadingTable}
                   >
-                    Next ▶
+                    Next
                   </button>
                 </div>
               </div>
             )}
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

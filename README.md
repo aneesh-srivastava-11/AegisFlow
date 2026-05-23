@@ -1,4 +1,4 @@
-# Code Review AI — AI-Powered Security Analysis
+# AegisFlow — AI-Powered Security Analysis
 
 > Automatically detect vulnerabilities, hardcoded secrets, and security issues in every pull request using Gemini 2.0 Flash AI. Works with **any programming language**.
 

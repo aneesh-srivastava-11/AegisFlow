@@ -4,8 +4,11 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   GithubAuthProvider,
+  OAuthProvider,
   signInWithPopup
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -15,7 +18,10 @@ const AuthContext = createContext({
   token: null,
   loading: true,
   login: async () => {},
+  signup: async () => {},
+  sendPasswordReset: async () => {},
   loginWithGithub: async () => {},
+  loginWithGitlab: async () => {},
   logout: async () => {},
 });
 
@@ -53,10 +59,46 @@ export function AuthContextProvider({ children }) {
     }
   };
 
+  const signup = async (email, password) => {
+    setLoading(true);
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      const userToken = await result.user.getIdToken(true);
+      setToken(userToken);
+      setUser(result.user);
+      return result.user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendPasswordReset = async (email) => {
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loginWithGithub = async () => {
     setLoading(true);
     try {
       const provider = new GithubAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const userToken = await result.user.getIdToken(true);
+      setToken(userToken);
+      setUser(result.user);
+      return result.user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loginWithGitlab = async () => {
+    setLoading(true);
+    try {
+      const provider = new OAuthProvider('gitlab.com');
       const result = await signInWithPopup(auth, provider);
       const userToken = await result.user.getIdToken(true);
       setToken(userToken);
@@ -79,7 +121,7 @@ export function AuthContextProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginWithGithub, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, signup, sendPasswordReset, loginWithGithub, loginWithGitlab, logout }}>
       {children}
     </AuthContext.Provider>
   );

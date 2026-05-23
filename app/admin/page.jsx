@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 
 export default function AdminPage() {
   const { user, token, loading } = useAuth();
@@ -89,18 +88,13 @@ export default function AdminPage() {
           <p style={{ color: 'var(--text-secondary)' }}>Configure system resources and check runtime environment</p>
         </div>
         <div className="badge badge-success" style={{ padding: '8px 14px', borderRadius: 20 }}>
-          🛡️ Authenticated as Admin
+          Authenticated as Admin
         </div>
       </div>
 
       <div className="grid-2" style={{ marginBottom: 24, alignItems: 'start' }}>
         {/* Environment Status */}
-        <motion.div 
-          className="card"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4 }}
-        >
+        <div className="card">
           <h3 style={{ marginBottom: 20 }}>System Environment Status</h3>
           {config ? (
             <div style={{ display: 'grid', gap: 14 }}>
@@ -132,15 +126,10 @@ export default function AdminPage() {
           ) : (
             <p style={{ color: 'var(--text-muted)' }}>Could not load configuration parameters status.</p>
           )}
-        </motion.div>
+        </div>
 
         {/* Database Initialization & Setup Actions */}
-        <motion.div 
-          className="card"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4 }}
-        >
+        <div className="card">
           <h3 style={{ marginBottom: 16 }}>Database & Seed Setup</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 20, lineHeight: 1.5 }}>
             Initialize MongoDB indexes for search queries and pre-seed the database collections with static famous security breaches and common CVE regex configurations.
@@ -148,13 +137,13 @@ export default function AdminPage() {
 
           {error && (
             <div className="card" style={{ borderColor: 'var(--critical)', color: 'var(--critical)', padding: 12, marginBottom: 20, fontSize: '0.85rem' }}>
-              ⚠️ Error: {error}
+              Error: {error}
             </div>
           )}
 
           {initStatus === 'success' && initResult && (
             <div className="card" style={{ borderColor: 'var(--success)', color: 'var(--success)', padding: 16, marginBottom: 20, fontSize: '0.9rem', background: 'rgba(16, 185, 129, 0.05)' }}>
-              <h4>✅ Database Seeding Complete</h4>
+              <h4>Database Seeding Complete</h4>
               <ul style={{ marginTop: 8, paddingLeft: 20, fontSize: '0.85rem' }}>
                 <li>Seeded breaches count: <strong>{initResult.breaches}</strong></li>
                 <li>Seeded CVE patterns count: <strong>{initResult.patterns}</strong></li>
@@ -175,10 +164,10 @@ export default function AdminPage() {
                 Initializing Database...
               </>
             ) : (
-              '🗄️ Run Database Setup & Seeding'
+              'Run Database Setup & Seeding'
             )}
           </button>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -117,7 +117,7 @@ export async function POST(request) {
 export async function GET() {
   return NextResponse.json({
     status: 'ok',
-    service: 'Code Review AI Webhook',
+    service: 'AegisFlow Webhook',
     timestamp: new Date().toISOString(),
     events_handled: ['ping', 'pull_request', 'installation'],
   });

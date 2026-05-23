@@ -2,37 +2,35 @@
 
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
   const { user, logout, loading } = useAuth();
+  const pathname = usePathname();
 
   return (
     <nav className="nav">
       <div className="nav-inner">
         <Link href="/" className="nav-logo">
-          <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 28, height: 28 }}>
-            <rect width="28" height="28" rx="6" fill="url(#g)" />
-            <path d="M8 14l3 3 9-9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <defs>
-              <linearGradient id="g" x1="0" y1="0" x2="28" y2="28">
-                <stop stopColor="#6366f1" />
-                <stop offset="1" stopColor="#8b5cf6" />
-              </linearGradient>
-            </defs>
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 22, height: 22 }}>
+            <path d="M12 2L3 5v6c0 5.5 4.5 10 9 11 4.5-1 9-5.5 9-11V5l-9-3z" stroke="var(--accent-primary)" strokeWidth="2" strokeLinejoin="round" fill="none" />
+            <path d="M8 11c1.5-1.5 3-2 4-2s2.5.5 4 2" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" />
+            <path d="M9 14c1-1 2-1.5 3-1.5s2 .5 3 1.5" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          Code Review AI
+          AegisFlow
         </Link>
         <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Link href="/demo">Live Demo</Link>
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/install">Install App</Link>
+          <Link href="/" className={pathname === '/' ? 'active' : ''}>Home</Link>
+          <Link href="/demo" className={pathname === '/demo' ? 'active' : ''}>Live Demo</Link>
+          <Link href="/install" className={pathname === '/install' ? 'active' : ''}>Install App</Link>
           
           {loading ? (
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>...</span>
           ) : user ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Link href="/admin" className="badge" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>Admin Panel</Link>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <Link href="/dashboard" className={pathname === '/dashboard' ? 'active' : ''} style={{ fontSize: '0.85rem', fontWeight: 500 }}>Dashboard</Link>
+              <Link href="/admin" className="badge" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', textDecoration: 'none' }}>Admin</Link>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {user.email || 'Admin'}
               </span>
               <button onClick={logout} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px' }}>

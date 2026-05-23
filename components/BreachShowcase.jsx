@@ -45,11 +45,11 @@ export default function BreachShowcase({ breaches }) {
         <CodeDiffViewer code={b.vulnerable_code} language={b.language} />
 
         <div style={{ marginTop: 16 }}>
-          <h4 style={{ marginBottom: 8, color: 'var(--success)' }}>🤖 What Our AI Would Detect</h4>
+          <h4 style={{ marginBottom: 8, color: 'var(--success)' }}>What AegisFlow detects</h4>
           <div style={{ display: 'grid', gap: 6 }}>
             {b.detection_points.map((point, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                <span style={{ color: 'var(--critical)' }}>✕</span> {point}
+                <span style={{ color: 'var(--critical)' }}>•</span> {point}
               </div>
             ))}
           </div>

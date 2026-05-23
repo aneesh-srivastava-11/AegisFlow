@@ -67,7 +67,7 @@ export async function GET() {
   // GitHub App manifest for one-click installation
   const manifest = {
     name: 'AI Code Review',
-    description: 'AI-powered security code review using Gemini 2.0 Flash. Automatically detects vulnerabilities, secrets, and security issues in pull requests.',
+    description: 'AI-powered security code review using Gemini. Automatically detects vulnerabilities, secrets, and security issues in pull requests.',
     url: appUrl,
     hook_attributes: {
       url: `${appUrl}/api/github/webhook`,

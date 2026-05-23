@@ -1,108 +1,266 @@
+'use client';
+
+import { useState } from 'react';
 import InstallButton from '@/components/InstallButton';
+import BreachShowcase from '@/components/BreachShowcase';
+import breachData from '@/data/famous-breaches.json';
 
-const features = [
-  { icon: '🤖', title: 'AI-Powered Analysis', desc: 'Gemini 2.0 Flash analyzes every PR for security vulnerabilities in seconds.' },
-  { icon: '🌐', title: 'Any Language', desc: 'JavaScript, Python, Java, Go, Rust, PHP, Ruby, C++, and 20+ more languages.' },
-  { icon: '⚡', title: 'Instant Feedback', desc: 'Results posted as GitHub PR review comments within 10 seconds.' },
-  { icon: '🔒', title: 'Real CVE Detection', desc: 'Matches code patterns against known CVEs like Log4Shell and prototype pollution.' },
-  { icon: '🛡️', title: 'Block Critical PRs', desc: 'Automatically requests changes when critical vulnerabilities are found.' },
-  { icon: '📊', title: 'Analytics Dashboard', desc: 'Track vulnerabilities, languages, and security posture across all repos.' },
-];
-
-const stats = [
-  { label: 'Vulnerability Types', value: '50+' },
-  { label: 'Languages Supported', value: '25+' },
-  { label: 'Avg Scan Time', value: '<5s' },
-  { label: 'CVE Patterns', value: '100+' },
+const prExamples = [
+  {
+    id: 'secret',
+    tabName: 'Hardcoded Secret',
+    file: 'app/services/auth.js',
+    lineStart: 12,
+    code: [
+      { line: 11, type: 'normal', text: 'export async function authenticate(credentials) {' },
+      { line: 12, type: 'removed', text: '  const token = "ghp_2L3uB9t7xJ9qK5pL2o0w91m2xS9v98r";' },
+      { line: 12, type: 'added', text: '  const token = process.env.GITHUB_TOKEN;' },
+      { line: 13, type: 'normal', text: '  return fetchUser(token, credentials);' },
+      { line: 14, type: 'normal', text: '}' }
+    ],
+    explanation: 'Hardcoded credential detected. Storing static secrets in code makes them accessible to anyone with repository read access. Move this credential to your environment configuration.'
+  },
+  {
+    id: 'sql',
+    tabName: 'SQL Injection',
+    file: 'lib/db.js',
+    lineStart: 42,
+    code: [
+      { line: 41, type: 'normal', text: 'async function getUser(email) {' },
+      { line: 42, type: 'removed', text: '  const query = "SELECT * FROM users WHERE email = \'" + email + "\'";' },
+      { line: 42, type: 'added', text: '  const query = "SELECT * FROM users WHERE email = ?";' },
+      { line: 43, type: 'normal', text: '  return db.execute(query, [email]);' },
+      { line: 44, type: 'normal', text: '}' }
+    ],
+    explanation: 'Unsanitized user input is concatenated directly into a SQL query. This allows raw SQL commands to be executed against your database. Use parameterized queries or placeholders instead.'
+  },
+  {
+    id: 'exec',
+    tabName: 'Command Injection',
+    file: 'server.js',
+    lineStart: 78,
+    code: [
+      { line: 77, type: 'normal', text: 'app.get("/ping", (req, res) => {' },
+      { line: 78, type: 'removed', text: '  exec("ping -c 1 " + req.query.host);' },
+      { line: 78, type: 'added', text: '  execFile("/bin/ping", ["-c", "1", req.query.host]);' },
+      { line: 79, type: 'normal', text: '  res.send("Pinging...");' },
+      { line: 80, type: 'normal', text: '});' }
+    ],
+    explanation: 'Executing a shell command using string concatenation allows shell injection attacks. Attackers can append command delimiters to execute arbitrary system binaries. Use execFile with isolated argument arrays.'
+  }
 ];
 
 export default function HomePage() {
+  const [activeExample, setActiveExample] = useState('secret');
+  const selected = prExamples.find(ex => ex.id === activeExample) || prExamples[0];
+
   return (
     <>
-      {/* Hero */}
+      {/* Hero Section */}
       <section className="hero">
-        <div className="container">
-          <div className="hero-badge">🚀 Powered by Gemini 2.0 Flash</div>
-          <h1>
-            AI Security Review<br />
-            for Every <span className="gradient">Pull Request</span>
-          </h1>
+        <div className="hero-grid" />
+        <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 14px', borderRadius: '9999px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 24 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }} />
+            <span style={{ fontSize: '0.775rem', fontWeight: 650, color: 'var(--text-secondary)' }}>Automated Pull Request Security Reviews</span>
+          </div>
+
+          <h1>Real-time security analysis for pull requests</h1>
           <p>
-            Automatically detect vulnerabilities, hardcoded secrets, and security issues
-            across any programming language. Install once, protect every PR.
+            AegisFlow integrates directly into your GitHub and GitLab pipelines. It scans every commit for logic flaws, static secrets, and vulnerabilities, and posts review comments inline.
           </p>
+
           <div className="hero-actions">
             <InstallButton />
-            <a href="/demo" className="btn btn-secondary btn-lg">Try Live Demo →</a>
+            <a href="/demo" className="btn btn-secondary btn-lg">Test Sandbox Demo</a>
           </div>
-        </div>
-      </section>
 
-      {/* Stats */}
-      <section style={{ padding: '0 0 60px' }}>
-        <div className="container grid-4">
-          {stats.map(s => (
-            <div key={s.label} className="stat-card" style={{ textAlign: 'center' }}>
-              <span className="stat-value">{s.value}</span>
-              <span className="stat-label">{s.label}</span>
+          {/* Interactive IDE / PR Mockup */}
+          <div className="pr-mockup-container">
+            
+            {/* Sidebar File Explorer */}
+            <div style={{ borderRight: '1px solid var(--border-color)', paddingRight: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: '0.725rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>
+                Files Changed
+              </div>
+              {prExamples.map(ex => (
+                <button
+                  key={ex.id}
+                  onClick={() => setActiveExample(ex.id)}
+                  style={{
+                    background: activeExample === ex.id ? 'rgba(255, 255, 255, 0.04)' : 'none',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    color: activeExample === ex.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    fontWeight: activeExample === ex.id ? '600' : '400',
+                    cursor: 'pointer',
+                    fontSize: '0.825rem',
+                    transition: 'var(--transition)',
+                    width: '100%'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '10px', color: activeExample === ex.id ? 'var(--accent-primary)' : 'var(--text-muted)' }}>◆</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ex.file.split('/').pop()}
+                    </span>
+                  </div>
+                </button>
+              ))}
             </div>
-          ))}
+
+            {/* Code Editor Panel */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              
+              {/* Window Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f56', display: 'inline-block' }} />
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block' }} />
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#27c93f', display: 'inline-block' }} />
+                  <span style={{ marginLeft: 10, fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {selected.file}
+                  </span>
+                </div>
+                <div className="badge badge-critical" style={{ fontSize: '0.65rem' }}>
+                  Risk Detected
+                </div>
+              </div>
+
+              {/* IDE Lines Diff */}
+              <div style={{
+                background: 'rgba(0,0,0,0.2)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                fontFamily: 'monospace',
+                fontSize: '0.8rem'
+              }}>
+                {selected.code.map((line, idx) => (
+                  <div 
+                    key={idx} 
+                    className={line.type === 'added' ? 'code-line-added' : line.type === 'removed' ? 'code-line-removed' : ''}
+                    style={{
+                      display: 'flex',
+                      padding: '4px 16px',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-muted)', minWidth: 28, userSelect: 'none' }}>
+                      {line.line}
+                    </span>
+                    <span style={{ 
+                      color: line.type === 'added' ? '#30d158' : line.type === 'removed' ? '#ff453a' : 'var(--text-secondary)',
+                      marginLeft: 12,
+                      overflowX: 'auto',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}
+                      {line.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* AegisFlow Feedback Card */}
+              <div style={{
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--bg-card)',
+                boxShadow: 'var(--shadow)',
+                overflow: 'hidden'
+              }}>
+                {/* Comment Header */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.02)',
+                  borderBottom: '1px solid var(--border-color)'
+                }}>
+                  <div style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '6px',
+                    background: 'var(--accent-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                    color: '#ffffff'
+                  }}>
+                    A
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                    <span style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-primary)' }}>AegisFlow Bot</span>
+                    <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>analyzed line {selected.lineStart}</span>
+                  </div>
+                </div>
+
+                {/* Comment Body */}
+                <div style={{ padding: 16, fontSize: '0.875rem', lineHeight: '1.5', color: 'var(--text-primary)', textAlign: 'left' }}>
+                  {selected.explanation}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
         </div>
       </section>
 
-      {/* Features */}
+      {/* Security Checks */}
       <section className="section">
         <div className="container">
           <div className="section-title">
-            <h2>Everything You Need for Secure Code</h2>
-            <p>One GitHub App installation protects your entire organization.</p>
+            <h2>Scope of security checks</h2>
+            <p>
+              AegisFlow scans code changes statically to verify safety patterns and warn developers before code reaches production.
+            </p>
           </div>
-          <div className="grid-3">
-            {features.map(f => (
-              <div key={f.title} className="card">
-                <span style={{ fontSize: '2rem', marginBottom: 12, display: 'block' }}>{f.icon}</span>
-                <h3 style={{ fontSize: '1.15rem', marginBottom: 8 }}>{f.title}</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{f.desc}</p>
-              </div>
-            ))}
+          <div className="grid-2">
+            <div className="card">
+              <h3>Secret Detection</h3>
+              <p style={{ marginTop: 8 }}>
+                Identifies database tokens, private keys, API certificates, and client tokens exposed in configuration files or code files.
+              </p>
+            </div>
+            <div className="card">
+              <h3>Input Vulnerabilities</h3>
+              <p style={{ marginTop: 8 }}>
+                Flags patterns matching SQL injection, cross-site scripting, command execution, and local file inclusions.
+              </p>
+            </div>
+            <div className="card">
+              <h3>Dependency Auditing</h3>
+              <p style={{ marginTop: 8 }}>
+                Evaluates package lockfiles against vulnerability catalogs to identify packages with known vulnerabilities.
+              </p>
+            </div>
+            <div className="card">
+              <h3>Logic Flaws</h3>
+              <p style={{ marginTop: 8 }}>
+                Warns about execution bottlenecks, infinite loops, bypassed validation gates, and unhandled logic exceptions.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="section" style={{ background: 'var(--bg-secondary)' }}>
+      {/* Why You Need Us (Historical Incidents) */}
+      <section className="section" style={{ background: 'var(--bg-tertiary)', borderBottom: 'none' }}>
         <div className="container">
           <div className="section-title">
-            <h2>How It Works</h2>
-            <p>Three steps. Zero configuration. Instant protection.</p>
+            <h2>Lessons from historical incidents</h2>
+            <p>
+              Review how major code security failures happened, and where automated review checks would have alerted developers.
+            </p>
           </div>
-          <div className="grid-3">
-            {[
-              { step: '01', title: 'Install', desc: 'Click Install GitHub App and select your repositories. Takes 30 seconds.' },
-              { step: '02', title: 'Code', desc: 'Open pull requests as normal. Our AI watches for every change automatically.' },
-              { step: '03', title: 'Secure', desc: 'Get instant security reviews with actionable fixes right on your PR.' },
-            ].map(s => (
-              <div key={s.step} className="card" style={{ textAlign: 'center', padding: 32 }}>
-                <span style={{ fontSize: '2.5rem', fontWeight: 900, background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{s.step}</span>
-                <h3 style={{ margin: '12px 0 8px' }}>{s.title}</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="section">
-        <div className="container" style={{ textAlign: 'center' }}>
-          <h2 style={{ marginBottom: 16 }}>Stop Shipping Vulnerabilities</h2>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: 500, margin: '0 auto 32px' }}>
-            Join teams using AI to catch security issues before they reach production.
-          </p>
-          <div className="hero-actions">
-            <InstallButton />
-            <a href="/demo" className="btn btn-secondary btn-lg">See It In Action →</a>
-          </div>
+          <BreachShowcase breaches={breachData} />
         </div>
       </section>
     </>

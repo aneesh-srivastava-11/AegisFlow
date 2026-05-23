@@ -96,7 +96,7 @@ export async function POST(request) {
 export async function GET() {
   return NextResponse.json({
     status: 'ok',
-    service: 'Code Review AI GitLab Webhook',
+    service: 'AegisFlow GitLab Webhook',
     timestamp: new Date().toISOString(),
     events_handled: ['Merge Request Hook'],
   });
