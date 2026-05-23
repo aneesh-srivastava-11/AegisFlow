@@ -79,7 +79,7 @@ export default function LoginPage() {
     <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '75vh', paddingTop: 40, paddingBottom: 60 }}>
       <div 
         className="card" 
-        style={{ maxWidth: 450, width: '100%', padding: 32 }}
+        style={{ width: '450px', maxWidth: '100%', padding: 32 }}
       >
         {/* Tab Header Selector */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: 24 }}>
