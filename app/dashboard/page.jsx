@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
+import SettingsPanel from '@/components/SettingsPanel';
 
 // Theme Colors
 const SEVERITY_COLORS = {
@@ -29,6 +30,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [loadingTable, setLoadingTable] = useState(false);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isMounted, setIsMounted] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshCountdown, setRefreshCountdown] = useState(30);
@@ -148,34 +150,53 @@ function DashboardContent() {
 
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 60 }}>
-      {/* Top Banner */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
+      {/* Top Banner & Tabs */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: '2.25rem', fontWeight: 800 }}>Security Dashboard</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Real-time code review metrics and telemetry</p>
+          <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
+            <button 
+              onClick={() => setActiveTab('dashboard')} 
+              style={{ background: 'none', border: 'none', borderBottom: activeTab === 'dashboard' ? '2px solid var(--accent-primary)' : '2px solid transparent', color: activeTab === 'dashboard' ? 'var(--accent-primary)' : 'var(--text-secondary)', paddingBottom: 8, fontSize: '1rem', fontWeight: 600, cursor: 'pointer', transition: 'var(--transition)' }}
+            >
+              Overview
+            </button>
+            <button 
+              onClick={() => setActiveTab('settings')} 
+              style={{ background: 'none', border: 'none', borderBottom: activeTab === 'settings' ? '2px solid var(--accent-primary)' : '2px solid transparent', color: activeTab === 'settings' ? 'var(--accent-primary)' : 'var(--text-secondary)', paddingBottom: 8, fontSize: '1rem', fontWeight: 600, cursor: 'pointer', transition: 'var(--transition)' }}
+            >
+              API Settings
+            </button>
+          </div>
         </div>
         
-        {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            <input 
-              type="checkbox" 
-              id="auto-refresh"
-              checked={autoRefresh} 
-              onChange={(e) => setAutoRefresh(e.target.checked)} 
-              style={{ cursor: 'pointer' }}
-            />
-            <label htmlFor="auto-refresh" style={{ cursor: 'pointer', userSelect: 'none' }}>
-              Auto-refresh {autoRefresh && `(${refreshCountdown}s)`}
-            </label>
+        {/* Controls (Only show on dashboard tab) */}
+        {activeTab === 'dashboard' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              <input 
+                type="checkbox" 
+                id="auto-refresh"
+                checked={autoRefresh} 
+                onChange={(e) => setAutoRefresh(e.target.checked)} 
+                style={{ cursor: 'pointer' }}
+              />
+              <label htmlFor="auto-refresh" style={{ cursor: 'pointer', userSelect: 'none' }}>
+                Auto-refresh {autoRefresh && `(${refreshCountdown}s)`}
+              </label>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => fetchData(true)}>
+              Refresh Now
+            </button>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={() => fetchData(true)}>
-            Refresh Now
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Stats Cards */}
+      {activeTab === 'settings' ? (
+        <SettingsPanel />
+      ) : (
+        <>
+          {/* Stats Cards */}
       <div className="grid-4" style={{ marginBottom: 24 }}>
         <div className="stat-card">
           <span className="stat-label">PRs Analyzed</span>
@@ -200,7 +221,7 @@ function DashboardContent() {
       {/* Visual Analytics Row */}
       <div className="grid-2" style={{ marginBottom: 24 }}>
         {/* Severity Pie Chart */}
-        <div className="card" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
+        <div className="card" style={{ minHeight: 320, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ marginBottom: 16 }}>Vulnerability Severity Distribution</h3>
           <div style={{ flex: 1, width: '100%', minHeight: 220 }}>
             {isMounted && (
@@ -230,7 +251,7 @@ function DashboardContent() {
         </div>
 
         {/* Scan Trend Area Chart */}
-        <div className="card" style={{ minHeight: 320, display: 'flex', flexDirection: 'column' }}>
+        <div className="card" style={{ minHeight: 320, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ marginBottom: 16 }}>Analysis Activity (Last 7 Days)</h3>
           <div style={{ flex: 1, width: '100%', minHeight: 220 }}>
             {isMounted && (
@@ -251,7 +272,7 @@ function DashboardContent() {
 
       {/* Languages & Detailed Breakdown */}
       <div className="grid-2" style={{ marginBottom: 24 }}>
-        <div className="card">
+        <div className="card" style={{ minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ marginBottom: 16 }}>Top Vulnerability Types</h3>
           {topVulnerabilityTypes.length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>No vulnerabilities detected yet</p>
@@ -268,7 +289,7 @@ function DashboardContent() {
           )}
         </div>
 
-        <div className="card">
+        <div className="card" style={{ minWidth: 0, overflow: 'hidden' }}>
           <h3 style={{ marginBottom: 16 }}>Languages Analyzed</h3>
           {languageDistribution.length === 0 ? (
             <p style={{ color: 'var(--text-muted)' }}>No analysis data yet</p>
@@ -368,6 +389,8 @@ function DashboardContent() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

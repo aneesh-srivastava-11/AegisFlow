@@ -18,7 +18,7 @@ export default function CodeDiffViewer({ code, language }) {
           return (
             <div key={i} className={cls}>
               <span className="code-line-number">{i + 1}</span>
-              <span>{line}</span>
+              <span style={{ whiteSpace: 'pre' }}>{line}</span>
             </div>
           );
         })}

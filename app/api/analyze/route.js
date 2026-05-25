@@ -42,17 +42,19 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { prUrl } = body;
+    const { prUrl, code, language } = body;
 
-    if (!prUrl) {
+    if (!prUrl && !code) {
       return NextResponse.json(
-        { error: 'Provide a valid "prUrl" (GitHub PR or GitLab MR)' },
+        { error: 'Provide a valid "prUrl" (GitHub PR or GitLab MR) or raw "code"' },
         { status: 400, headers }
       );
     }
 
     let response;
-    if (prUrl.includes('github.com')) {
+    if (code) {
+      response = await analyzeSandboxCode(code, language || 'JavaScript', startTime);
+    } else if (prUrl.includes('github.com')) {
       response = await analyzePR(prUrl, startTime);
     } else if (prUrl.includes('gitlab.com')) {
       response = await analyzeMR(prUrl, startTime);
@@ -79,6 +81,40 @@ export async function POST(request) {
     );
   }
 }
+
+/**
+ * Feature D: Analyze raw code snippet from Sandbox Code Editor
+ */
+async function analyzeSandboxCode(code, language, startTime) {
+  const { analyzeRawCode } = await import('@/lib/gemini');
+  const analysis = await analyzeRawCode(code, language);
+  const risk = calculateRiskScore(analysis);
+
+  // Store manual sandbox run in MongoDB
+  try {
+    const analyses = await getCollection('analyses');
+    const doc = formatForStorage(analysis, {
+      owner: 'sandbox',
+      repo: 'playground',
+      pullNumber: 0,
+      title: `Sandbox analysis of ${language} code`,
+      author: 'sandbox-user',
+      url: '',
+    });
+    doc.source = 'sandbox';
+    await analyses.insertOne(doc);
+  } catch (dbError) {
+    console.warn('[Analyze] Failed to store sandbox run in MongoDB:', dbError.message);
+  }
+
+  return NextResponse.json({
+    analysis,
+    risk,
+    pr: { owner: 'sandbox', repo: 'playground', pullNumber: 0, url: '', source: 'sandbox' },
+    processingTimeMs: Date.now() - startTime,
+  });
+}
+
 
 /**
  * Analyze a GitHub PR by URL

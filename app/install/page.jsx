@@ -118,7 +118,7 @@ export default function InstallPage() {
                   <tbody>
                     <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '8px 0', fontWeight: 'bold', width: '30%' }}>URL</td>
-                      <td style={{ padding: '8px 0', color: 'var(--accent-primary)', fontFamily: 'monospace' }}>
+                      <td style={{ padding: '8px 0', color: 'var(--accent-primary)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                         {typeof window !== 'undefined' ? `${window.location.origin}/api/gitlab/webhook` : 'https://your-app-url.vercel.app/api/gitlab/webhook'}
                       </td>
                     </tr>

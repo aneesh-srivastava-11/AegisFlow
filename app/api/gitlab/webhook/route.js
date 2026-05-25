@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { verifyGitlabWebhookSignature } from '@/lib/gitlab';
 import { handleMergeRequestEvent } from '@/lib/webhook-handler';
 
@@ -42,28 +43,16 @@ export async function POST(request) {
 
     // Handle Merge Request events
     if (event === 'Merge Request Hook') {
-      const processPromise = handleMergeRequestEvent(payload)
-        .then(result => {
-          console.log(`[GitLab Webhook] Async processing complete. Status: ${result.status}, Recommendation: ${result.recommendation || 'N/A'}`);
-        })
-        .catch(err => {
-          console.error(`[GitLab Webhook] Async processing failed:`, err);
-        });
-
-      // Keep the execution alive after responding
-      try {
-        const { waitUntil } = await import('next/server');
-        if (typeof waitUntil === 'function') {
-          waitUntil(processPromise);
-          console.log(`[GitLab Webhook] Registered async processing with next/server.waitUntil`);
-        } else {
-          console.warn('[GitLab Webhook] next/server.waitUntil is not a function, falling back to sync await');
-          await processPromise;
+      // Bug #2 fix: Use next/server after() to guarantee the 202 response fires
+      // before the long-running Gemini scan and GitLab comment posting begins.
+      after(async () => {
+        try {
+          const result = await handleMergeRequestEvent(payload);
+          console.log(`[GitLab Webhook] Background processing complete. Status: ${result.status}, Recommendation: ${result.recommendation || 'N/A'}`);
+        } catch (err) {
+          console.error('[GitLab Webhook] Background processing failed:', err);
         }
-      } catch (err) {
-        console.warn('[GitLab Webhook] next/server.waitUntil import failed, falling back to sync await:', err.message);
-        await processPromise;
-      }
+      });
 
       return NextResponse.json({
         status: 'accepted',

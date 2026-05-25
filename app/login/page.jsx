@@ -81,21 +81,29 @@ export default function LoginPage() {
         className="card" 
         style={{ width: '450px', maxWidth: '100%', padding: 32 }}
       >
-        {/* Tab Header Selector */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: 24 }}>
+        {/* Segmented Control Selector */}
+        <div style={{
+          display: 'flex',
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 8,
+          padding: 4,
+          marginBottom: 24
+        }}>
           <button 
             type="button"
             onClick={() => switchMode('signin')}
             style={{
               flex: 1,
-              padding: '12px 8px',
-              background: 'none',
+              padding: '8px 12px',
+              background: mode === 'signin' ? 'rgba(255, 255, 255, 0.05)' : 'none',
               border: 'none',
-              borderBottom: mode === 'signin' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+              borderRadius: 6,
               color: mode === 'signin' ? 'var(--text-primary)' : 'var(--text-secondary)',
               fontWeight: 600,
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               cursor: 'pointer',
+              transition: 'var(--transition)'
             }}
           >
             Sign In
@@ -105,14 +113,15 @@ export default function LoginPage() {
             onClick={() => switchMode('signup')}
             style={{
               flex: 1,
-              padding: '12px 8px',
-              background: 'none',
+              padding: '8px 12px',
+              background: mode === 'signup' ? 'rgba(255, 255, 255, 0.05)' : 'none',
               border: 'none',
-              borderBottom: mode === 'signup' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+              borderRadius: 6,
               color: mode === 'signup' ? 'var(--text-primary)' : 'var(--text-secondary)',
               fontWeight: 600,
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               cursor: 'pointer',
+              transition: 'var(--transition)'
             }}
           >
             Sign Up

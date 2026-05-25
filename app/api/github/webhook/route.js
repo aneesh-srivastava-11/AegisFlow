@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { verifyWebhookSignature } from '@/lib/github';
 import { handlePullRequestEvent } from '@/lib/webhook-handler';
 
@@ -62,28 +63,17 @@ export async function POST(request) {
 
     // Handle pull request events
     if (event === 'pull_request') {
-      const processPromise = handlePullRequestEvent(payload)
-        .then(result => {
-          console.log(`[Webhook] Async processing complete. Status: ${result.status}, Recommendation: ${result.recommendation || 'N/A'}`);
-        })
-        .catch(err => {
-          console.error(`[Webhook] Async processing failed:`, err);
-        });
-
-      // Keep the execution alive after responding
-      try {
-        const { waitUntil } = await import('next/server');
-        if (typeof waitUntil === 'function') {
-          waitUntil(processPromise);
-          console.log(`[Webhook] Registered async processing with next/server.waitUntil`);
-        } else {
-          console.warn('[Webhook] next/server.waitUntil is not a function, falling back to sync await');
-          await processPromise;
+      // Bug #2 fix: Use next/server after() to schedule background work.
+      // This guarantees the 202 response is sent immediately and the Git provider
+      // connection is released before the (potentially long) Gemini analysis begins.
+      after(async () => {
+        try {
+          const result = await handlePullRequestEvent(payload);
+          console.log(`[Webhook] Background processing complete. Status: ${result.status}, Recommendation: ${result.recommendation || 'N/A'}`);
+        } catch (err) {
+          console.error('[Webhook] Background processing failed:', err);
         }
-      } catch (err) {
-        console.warn('[Webhook] next/server.waitUntil import failed, falling back to sync await:', err.message);
-        await processPromise;
-      }
+      });
 
       return NextResponse.json({
         status: 'accepted',

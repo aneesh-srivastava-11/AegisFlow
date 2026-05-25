@@ -19,17 +19,17 @@ export default function Navbar() {
           </svg>
           AegisFlow
         </Link>
-        <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="nav-links">
           <Link href="/" className={pathname === '/' ? 'active' : ''}>Home</Link>
-          <Link href="/demo" className={pathname === '/demo' ? 'active' : ''}>Live Demo</Link>
           <Link href="/install" className={pathname === '/install' ? 'active' : ''}>Install App</Link>
           
           {loading ? (
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>...</span>
           ) : user ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Link href="/dashboard" className={pathname === '/dashboard' ? 'active' : ''} style={{ fontSize: '0.85rem', fontWeight: 500 }}>Dashboard</Link>
-              <Link href="/admin" className="badge" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', textDecoration: 'none' }}>Admin</Link>
+              <Link href="/admin" className={`badge ${pathname === '/admin' ? 'active' : ''}`} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', textDecoration: 'none' }}>Admin</Link>
+              <Link href="/admin/webhook-logs" className={`badge ${pathname === '/admin/webhook-logs' ? 'active' : ''}`} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', textDecoration: 'none' }}>Webhook Logs</Link>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {user.email || 'Admin'}
               </span>

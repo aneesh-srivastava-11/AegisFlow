@@ -72,15 +72,14 @@ export default function HomePage() {
 
           <div className="hero-actions">
             <InstallButton />
-            <a href="/demo" className="btn btn-secondary btn-lg">Test Sandbox Demo</a>
           </div>
 
           {/* Interactive IDE / PR Mockup */}
           <div className="pr-mockup-container">
             
             {/* Sidebar File Explorer */}
-            <div style={{ borderRight: '1px solid var(--border-color)', paddingRight: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: '0.725rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>
+            <div className="pr-mockup-sidebar">
+              <div className="pr-mockup-sidebar-title">
                 Files Changed
               </div>
               {prExamples.map(ex => (
@@ -98,7 +97,8 @@ export default function HomePage() {
                     cursor: 'pointer',
                     fontSize: '0.825rem',
                     transition: 'var(--transition)',
-                    width: '100%'
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -112,7 +112,7 @@ export default function HomePage() {
             </div>
 
             {/* Code Editor Panel */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="pr-mockup-content">
               
               {/* Window Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: 12 }}>
@@ -134,7 +134,8 @@ export default function HomePage() {
                 background: 'rgba(0,0,0,0.2)',
                 border: '1px solid var(--border-color)',
                 borderRadius: '8px',
-                overflow: 'hidden',
+                overflowX: 'auto',
+                width: '100%',
                 fontFamily: 'monospace',
                 fontSize: '0.8rem'
               }}>
@@ -144,18 +145,19 @@ export default function HomePage() {
                     className={line.type === 'added' ? 'code-line-added' : line.type === 'removed' ? 'code-line-removed' : ''}
                     style={{
                       display: 'flex',
-                      padding: '4px 16px',
-                      alignItems: 'center'
+                      padding: '6px 16px',
+                      alignItems: 'center',
+                      width: 'max-content',
+                      minWidth: '100%'
                     }}
                   >
-                    <span style={{ color: 'var(--text-muted)', minWidth: 28, userSelect: 'none' }}>
+                    <span style={{ color: 'var(--text-muted)', minWidth: 28, userSelect: 'none', fontSize: '0.75rem' }}>
                       {line.line}
                     </span>
                     <span style={{ 
                       color: line.type === 'added' ? '#30d158' : line.type === 'removed' ? '#ff453a' : 'var(--text-secondary)',
                       marginLeft: 12,
-                      overflowX: 'auto',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'pre'
                     }}>
                       {line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  '}
                       {line.text}
