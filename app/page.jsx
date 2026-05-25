@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 import InstallButton from '@/components/InstallButton';
 import BreachShowcase from '@/components/BreachShowcase';
 import breachData from '@/data/famous-breaches.json';
@@ -52,6 +54,7 @@ const prExamples = [
 
 export default function HomePage() {
   const [activeExample, setActiveExample] = useState('secret');
+  const { user } = useAuth();
   const selected = prExamples.find(ex => ex.id === activeExample) || prExamples[0];
 
   return (
@@ -71,7 +74,13 @@ export default function HomePage() {
           </p>
 
           <div className="hero-actions">
-            <InstallButton />
+            {user ? (
+              <InstallButton />
+            ) : (
+              <Link href="/login" className="btn btn-primary btn-lg">
+                Get Started
+              </Link>
+            )}
           </div>
 
           {/* Interactive IDE / PR Mockup */}
