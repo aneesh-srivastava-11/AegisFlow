@@ -6,10 +6,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  signOut,
-  GithubAuthProvider,
-  OAuthProvider,
-  signInWithPopup
+  signOut
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -20,8 +17,6 @@ const AuthContext = createContext({
   login: async () => {},
   signup: async () => {},
   sendPasswordReset: async () => {},
-  loginWithGithub: async () => {},
-  loginWithGitlab: async () => {},
   logout: async () => {},
 });
 
@@ -81,33 +76,7 @@ export function AuthContextProvider({ children }) {
     }
   };
 
-  const loginWithGithub = async () => {
-    setLoading(true);
-    try {
-      const provider = new GithubAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const userToken = await result.user.getIdToken(true);
-      setToken(userToken);
-      setUser(result.user);
-      return result.user;
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const loginWithGitlab = async () => {
-    setLoading(true);
-    try {
-      const provider = new OAuthProvider('gitlab.com');
-      const result = await signInWithPopup(auth, provider);
-      const userToken = await result.user.getIdToken(true);
-      setToken(userToken);
-      setUser(result.user);
-      return result.user;
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const logout = async () => {
     setLoading(true);
@@ -121,7 +90,7 @@ export function AuthContextProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, signup, sendPasswordReset, loginWithGithub, loginWithGitlab, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, signup, sendPasswordReset, logout }}>
       {children}
     </AuthContext.Provider>
   );
