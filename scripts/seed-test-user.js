@@ -1,7 +1,6 @@
-import { MongoClient } from 'mongodb';
+import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 import path from 'path';
-
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,37 +10,42 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
 async function seed() {
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/code-review-ai';
-  const client = new MongoClient(uri);
+  const uri = process.env.DATABASE_URL;
+  if (!uri) {
+    console.error('❌ DATABASE_URL is not set in your .env.local file.');
+    process.exit(1);
+  }
+
+  const sql = neon(uri);
 
   try {
-    await client.connect();
-    const db = client.db();
-    const users = db.collection('users');
+    console.log('Seeding Neon database with mock developer user...');
 
-    const testUser = {
-      uid: 'mock-dev-admin',
-      email: 'test1@test.com',
-      geminiApiKey: process.env.GEMINI_API_KEY || 'mock-gemini-key',
-      githubOwner: 'test-owner',
-      gitlabOwner: 'test-group',
-      updatedAt: new Date()
-    };
+    await sql`
+      INSERT INTO users (uid, email, gemini_api_key, github_owner, policy_severity_threshold, policy_auto_approve, policy_ignored_dirs, updated_at)
+      VALUES (
+        'mock-dev-admin', 
+        'test1@test.com', 
+        ${process.env.GEMINI_API_KEY || 'mock-gemini-key'}, 
+        'test-owner', 
+        'CRITICAL',
+        true,
+        '',
+        NOW()
+      )
+      ON CONFLICT (uid) DO UPDATE
+      SET email = EXCLUDED.email,
+          gemini_api_key = EXCLUDED.gemini_api_key,
+          github_owner = EXCLUDED.github_owner,
+          updated_at = NOW()
+    `;
 
-    await users.updateOne(
-      { uid: 'mock-dev-admin' },
-      { $set: testUser },
-      { upsert: true }
-    );
-
-    console.log(`Successfully seeded MongoDB for test1@test.com (UID: mock-dev-admin)`);
-    console.log(`You can now log in locally using test1@test.com and password: test1234`);
+    console.log(`✅ Successfully seeded Neon Postgres user table for test1@test.com (UID: mock-dev-admin)`);
+    console.log(`👉 You can now log in locally using test1@test.com and password: test1234`);
     process.exit(0);
   } catch (error) {
-    console.error('Failed to seed MongoDB user:', error);
+    console.error('❌ Failed to seed database user:', error.message);
     process.exit(1);
-  } finally {
-    await client.close();
   }
 }
 

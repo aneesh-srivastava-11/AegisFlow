@@ -26,23 +26,15 @@ async function testAPIs() {
     allPassed = false;
   }
 
-  // ─── Test MongoDB ──────────────────────────────────────────
+  // ─── Test Neon Database ──────────────────────────────────────
   try {
-    const { MongoClient } = require('mongodb');
-    if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI not set in .env.local');
-    const client = new MongoClient(process.env.MONGODB_URI, {
-      connectTimeoutMS: 5000,
-      serverSelectionTimeoutMS: 5000,
-    });
-    await client.connect();
-    await client.db().admin().ping();
-    console.log('✅ MongoDB connected');
-    await client.close();
+    const { neon } = require('@neondatabase/serverless');
+    if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL not set in .env.local');
+    const sql = neon(process.env.DATABASE_URL);
+    await sql`SELECT NOW()`;
+    console.log('✅ Neon Database connected');
   } catch (err) {
-    console.log('❌ MongoDB failed:', err.message);
-    if (err.message.includes('ENOTFOUND') || err.message.includes('timeout')) {
-      console.log('   → Check your MONGODB_URI and IP whitelist (0.0.0.0/0)');
-    }
+    console.log('❌ Neon Database failed:', err.message);
     allPassed = false;
   }
 
@@ -68,27 +60,6 @@ async function testAPIs() {
     allPassed = false;
   }
 
-  // ─── Test GitLab API ───────────────────────────────────────
-  try {
-    if (!process.env.GITLAB_TOKEN) throw new Error('GITLAB_TOKEN not set in .env.local');
-    const apiUrl = process.env.GITLAB_API_URL || 'https://gitlab.com/api/v4';
-    const response = await fetch(`${apiUrl}/user`, {
-      headers: {
-        'PRIVATE-TOKEN': process.env.GITLAB_TOKEN,
-      },
-    });
-    if (response.ok) {
-      const user = await response.json();
-      console.log('✅ GitLab API: authenticated as', user.username);
-    } else if (response.status === 401) {
-      throw new Error('Invalid token (401 Unauthorized)');
-    } else {
-      throw new Error(`HTTP ${response.status}`);
-    }
-  } catch (err) {
-    console.log('❌ GitLab API failed:', err.message);
-    allPassed = false;
-  }
 
   // ─── Summary ───────────────────────────────────────────────
   console.log('');

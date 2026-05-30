@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getCollection } from '@/lib/mongodb';
+import { query } from '@/lib/neon';
 import { checkRateLimit, getClientIP, rateLimitHeaders } from '@/lib/rate-limiter';
 import { verifyServerSession } from '@/lib/auth-middleware';
 
 /**
- * Feature C: Webhook Logs Endpoint
+ * Webhook Logs Endpoint backed by Neon PostgreSQL
  * GET /api/webhook-logs?page=1&limit=20&source=github|gitlab&status=completed|failed
  */
 export async function GET(request) {
@@ -38,46 +38,55 @@ export async function GET(request) {
     const limitParam = Math.min(50, parseInt(searchParams.get('limit') || '20', 10));
     const source = searchParams.get('source'); // 'github' | 'gitlab' | null (all)
     const status = searchParams.get('status'); // 'completed' | 'failed' | null (all)
-    const skip = (page - 1) * limitParam;
+    const offset = (page - 1) * limitParam;
 
-    const collection = await getCollection('webhook_logs');
+    // Build filter parts for PostgreSQL query
+    const filterParts = [];
+    const queryParams = [];
+    let paramIndex = 1;
 
-    // Build filter query
-    const filter = {};
-    if (source) filter.source = source;
-    if (status) filter.status = status;
+    if (source) {
+      filterParts.push(`source = $${paramIndex++}`);
+      queryParams.push(source);
+    }
+    if (status) {
+      filterParts.push(`status = $${paramIndex++}`);
+      queryParams.push(status);
+    }
 
-    const [items, total] = await Promise.all([
-      collection.find(filter)
-        .sort({ receivedAt: -1 })
-        .skip(skip)
-        .limit(limitParam)
-        .project({
-          event: 1,
-          source: 1,
-          status: 1,
-          repositoryId: 1,
-          pullNumber: 1,
-          deliveryId: 1,
-          recommendation: 1,
-          scanTimeMs: 1,
-          error: 1,
-          receivedAt: 1,
-          completedAt: 1,
-        })
-        .toArray(),
-      collection.countDocuments(filter),
+    const whereClause = filterParts.length > 0 ? `WHERE ${filterParts.join(' AND ')}` : '';
+
+    // Paginated logs
+    const itemsQueryStr = `
+      SELECT id, delivery_id AS "deliveryId", event, source, status, repository_id AS "repositoryId",
+             pull_number AS "pullNumber", recommendation, scan_time_ms AS "scanTimeMs", error, reason,
+             received_at AS "receivedAt", completed_at AS "completedAt"
+      FROM webhook_logs
+      ${whereClause}
+      ORDER BY received_at DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
+
+    // Total count query
+    const countQueryStr = `
+      SELECT COUNT(*) AS count
+      FROM webhook_logs
+      ${whereClause}
+    `;
+
+    const itemsQueryParams = [...queryParams, limitParam, offset];
+
+    const [items, totalRes, statusSummary] = await Promise.all([
+      query(itemsQueryStr, itemsQueryParams),
+      query(countQueryStr, queryParams),
+      query(`
+        SELECT status AS _id, COUNT(*)::int AS count
+        FROM webhook_logs
+        GROUP BY status
+      `).catch(() => [])
     ]);
 
-    // Aggregate status summary
-    const statusSummary = await collection.aggregate([
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
-        },
-      },
-    ]).toArray().catch(() => []);
+    const total = parseInt(totalRes[0].count, 10);
 
     return NextResponse.json({
       items,

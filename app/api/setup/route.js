@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { initializeIndexes } from '@/lib/mongodb';
+import { initializeDatabase, query } from '@/lib/neon';
 import { verifyServerSession } from '@/lib/auth-middleware';
 import breaches from '@/data/famous-breaches.json';
 import patterns from '@/data/cve-patterns.json';
 
 /**
- * Setup Endpoint
- * Initializes database indexes and returns GitHub App configuration
+ * Setup Endpoint for Neon PostgreSQL
+ * Initializes database schemas, indexes, and seeds initial data
  * 
  * POST /api/setup - Initialize database (Admin only)
  * GET /api/setup - Get GitHub App manifest for installation
@@ -19,33 +19,56 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized: Admin authentication required' }, { status: 401 });
     }
 
-    await initializeIndexes();
+    // Initialize tables and indexes in Neon
+    await initializeDatabase();
 
-    // Seed famous breaches if they don't exist
-    const { getCollection } = await import('@/lib/mongodb');
-    const breachDb = await getCollection('breach_database');
-    const count = await breachDb.countDocuments();
+    // Seed famous breaches if table is empty
+    const countRes = await query('SELECT COUNT(*) AS count FROM breach_database');
+    const count = parseInt(countRes[0].count, 10);
     
     let seededBreaches = 0;
     if (count === 0) {
-      await breachDb.insertMany(breaches);
+      for (const b of breaches) {
+        await query(
+          `INSERT INTO breach_database (
+            slug, name, category, year, description, affected_users, financial_impact,
+            severity, vulnerable_code, language, detection_points, cve, lessons, what_happened, our_detection
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13::jsonb, $14, $15)`,
+          [
+            b.slug, b.name, b.category, b.year, b.description, b.affected_users, b.financial_impact,
+            b.severity, b.vulnerable_code, b.language, JSON.stringify(b.detection_points || []),
+            b.cve, JSON.stringify(b.lessons || []), b.what_happened || '', b.our_detection || ''
+          ]
+        );
+      }
       seededBreaches = breaches.length;
-      console.log(`[MongoDB] Seeded ${seededBreaches} famous breaches`);
+      console.log(`[Neon DB] Seeded ${seededBreaches} famous breaches`);
     }
 
-    // Seed CVE patterns
-    const patternsDb = await getCollection('cve_patterns');
-    const patternCount = await patternsDb.countDocuments();
+    // Seed CVE patterns if table is empty
+    const patternCountRes = await query('SELECT COUNT(*) AS count FROM cve_patterns');
+    const patternCount = parseInt(patternCountRes[0].count, 10);
+    
     let seededPatterns = 0;
     if (patternCount === 0) {
-      await patternsDb.insertMany(patterns);
+      for (const p of patterns) {
+        await query(
+          `INSERT INTO cve_patterns (
+            id, name, severity, description, languages, examples, cwe
+          ) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)`,
+          [
+            p.id, p.name, p.severity, p.description, JSON.stringify(p.languages || []),
+            JSON.stringify(p.examples || []), p.cwe || ''
+          ]
+        );
+      }
       seededPatterns = patterns.length;
-      console.log(`[MongoDB] Seeded ${seededPatterns} CVE patterns`);
+      console.log(`[Neon DB] Seeded ${seededPatterns} CVE patterns`);
     }
 
     return NextResponse.json({
       status: 'ok',
-      message: 'Database initialized successfully',
+      message: 'Neon database initialized and seeded successfully',
       seeded: {
         breaches: seededBreaches,
         patterns: seededPatterns

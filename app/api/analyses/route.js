@@ -1,10 +1,37 @@
 import { NextResponse } from 'next/server';
-import { getCollection } from '@/lib/mongodb';
+import { query } from '@/lib/neon';
 import { checkRateLimit, getClientIP, rateLimitHeaders } from '@/lib/rate-limiter';
 import { verifyServerSession } from '@/lib/auth-middleware';
 
+function mapRowToAnalysis(row) {
+  return {
+    _id: row.id,
+    repositoryId: row.repository_id,
+    pullRequest: {
+      number: row.pull_request_number,
+      title: row.pull_request_title,
+      author: row.pull_request_author,
+      url: row.pull_request_url,
+    },
+    results: {
+      summary: row.results_summary,
+      recommendation: row.results_recommendation,
+    },
+    metadata: {
+      languageDetected: row.metadata_language_detected,
+      scanTimeMs: row.metadata_scan_time_ms,
+    },
+    risk: {
+      score: row.risk_score,
+      level: row.risk_level,
+      totalIssues: row.risk_total_issues,
+    },
+    createdAt: row.created_at,
+  };
+}
+
 /**
- * Paginated Analyses List Endpoint
+ * Paginated Analyses List Endpoint backed by Neon PostgreSQL
  * GET /api/analyses?page=1&limit=10
  */
 export async function GET(request) {
@@ -36,33 +63,23 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '10', 10);
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    const collection = await getCollection('analyses');
-
-    const [items, total] = await Promise.all([
-      collection.find({ status: 'completed' })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .project({
-          repositoryId: 1,
-          'pullRequest.number': 1,
-          'pullRequest.title': 1,
-          'pullRequest.author': 1,
-          'pullRequest.url': 1,
-          'results.summary': 1,
-          'results.recommendation': 1,
-          'risk.score': 1,
-          'risk.level': 1,
-          'risk.totalIssues': 1,
-          'metadata.languageDetected': 1,
-          'metadata.scanTimeMs': 1,
-          createdAt: 1,
-        })
-        .toArray(),
-      collection.countDocuments({ status: 'completed' })
+    const [itemsRes, totalRes] = await Promise.all([
+      query(`
+        SELECT id, repository_id, pull_request_number, pull_request_title, pull_request_author, pull_request_url,
+               results_summary, results_recommendation, risk_score, risk_level, risk_total_issues,
+               metadata_language_detected, metadata_scan_time_ms, created_at
+        FROM analyses
+        WHERE status = 'completed'
+        ORDER BY created_at DESC
+        LIMIT $1 OFFSET $2
+      `, [limit, offset]),
+      query("SELECT COUNT(*) AS count FROM analyses WHERE status = 'completed'")
     ]);
+
+    const total = parseInt(totalRes[0].count, 10);
+    const items = itemsRes.map(mapRowToAnalysis);
 
     return NextResponse.json({
       items,

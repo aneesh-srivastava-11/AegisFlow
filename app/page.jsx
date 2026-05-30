@@ -70,7 +70,7 @@ export default function HomePage() {
 
           <h1>Real-time security analysis for pull requests</h1>
           <p>
-            AegisFlow integrates directly into your GitHub and GitLab pipelines. It scans every commit for logic flaws, static secrets, and vulnerabilities, and posts review comments inline.
+            AegisFlow integrates directly into your GitHub pipelines. It scans every commit for logic flaws, static secrets, and vulnerabilities, and posts review comments inline.
           </p>
 
           <div className="hero-actions">

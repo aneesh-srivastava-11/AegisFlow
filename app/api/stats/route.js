@@ -1,11 +1,39 @@
 import { NextResponse } from 'next/server';
-import { getCollection } from '@/lib/mongodb';
+import { query } from '@/lib/neon';
 import { checkRateLimit, getClientIP, rateLimitHeaders } from '@/lib/rate-limiter';
 import { verifyServerSession } from '@/lib/auth-middleware';
 
+function mapRowToAnalysis(row) {
+  return {
+    _id: row.id,
+    repositoryId: row.repository_id,
+    pullRequest: {
+      number: row.pull_request_number,
+      title: row.pull_request_title,
+      author: row.pull_request_author,
+      url: row.pull_request_url,
+    },
+    results: {
+      summary: row.results_summary,
+      recommendation: row.results_recommendation,
+    },
+    metadata: {
+      languageDetected: row.metadata_language_detected,
+      scanTimeMs: row.metadata_scan_time_ms,
+    },
+    risk: {
+      score: row.risk_score,
+      level: row.risk_level,
+      totalIssues: row.risk_total_issues,
+      breakdown: typeof row.risk_breakdown === 'string' ? JSON.parse(row.risk_breakdown) : row.risk_breakdown,
+    },
+    createdAt: row.created_at,
+  };
+}
+
 /**
- * Dashboard Statistics Endpoint
- * Returns real-time analytics from MongoDB
+ * Dashboard Statistics Endpoint backed by Neon PostgreSQL
+ * Returns real-time analytics
  * 
  * GET /api/stats
  */
@@ -37,137 +65,98 @@ export async function GET(request) {
   }
 
   try {
-    const analyses = await getCollection('analyses');
-    const vulnerabilities = await getCollection('vulnerabilities');
-    const repositories = await getCollection('repositories');
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    // Run all queries in parallel for performance
+    // Run all queries in parallel for performance using SQL
     const [
-      totalAnalyses,
-      completedAnalyses,
-      failedAnalyses,
-      recentAnalyses,
+      totalAnalysesRes,
+      completedAnalysesRes,
+      failedAnalysesRes,
+      recentAnalysesRes,
       severityBreakdown,
       topVulnTypes,
       languageStats,
-      avgScanTime,
-      repoCount,
-      breachesPrevented,
+      avgScanTimeRes,
+      repoCountRes,
+      breachesPreventedRes,
       dailyTrend,
     ] = await Promise.all([
       // Total analyses count
-      analyses.countDocuments(),
+      query('SELECT COUNT(*) AS count FROM analyses'),
 
       // Completed analyses
-      analyses.countDocuments({ status: 'completed' }),
+      query("SELECT COUNT(*) AS count FROM analyses WHERE status = 'completed'"),
 
       // Failed analyses
-      analyses.countDocuments({ status: 'failed' }),
+      query("SELECT COUNT(*) AS count FROM analyses WHERE status = 'failed'"),
 
       // Recent analyses (last 10)
-      analyses.find({ status: 'completed' })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .project({
-          repositoryId: 1,
-          'pullRequest.number': 1,
-          'pullRequest.title': 1,
-          'pullRequest.author': 1,
-          'pullRequest.url': 1,
-          'results.summary': 1,
-          'results.recommendation': 1,
-          'risk.score': 1,
-          'risk.level': 1,
-          'risk.totalIssues': 1,
-          'risk.breakdown': 1,
-          'metadata.languageDetected': 1,
-          'metadata.scanTimeMs': 1,
-          createdAt: 1,
-        })
-        .toArray(),
+      query(`
+        SELECT id, repository_id, pull_request_number, pull_request_title, pull_request_author, pull_request_url,
+               results_summary, results_recommendation, risk_score, risk_level, risk_total_issues, risk_breakdown,
+               metadata_language_detected, metadata_scan_time_ms, created_at
+        FROM analyses
+        WHERE status = 'completed'
+        ORDER BY created_at DESC
+        LIMIT 10
+      `),
 
       // Severity breakdown
-      vulnerabilities.aggregate([
-        {
-          $group: {
-            _id: '$severity',
-            count: { $sum: 1 },
-          },
-        },
-      ]).toArray(),
+      query(`
+        SELECT severity AS _id, COUNT(*)::int AS count
+        FROM vulnerabilities
+        GROUP BY severity
+      `),
 
       // Top vulnerability types
-      vulnerabilities.aggregate([
-        {
-          $group: {
-            _id: '$type',
-            count: { $sum: 1 },
-            avgConfidence: { $avg: '$confidence' },
-          },
-        },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
-      ]).toArray(),
+      query(`
+        SELECT type AS _id, COUNT(*)::int AS count, AVG(confidence) AS "avgConfidence"
+        FROM vulnerabilities
+        GROUP BY type
+        ORDER BY count DESC
+        LIMIT 10
+      `),
 
       // Language distribution
-      vulnerabilities.aggregate([
-        {
-          $group: {
-            _id: '$language',
-            count: { $sum: 1 },
-          },
-        },
-        { $sort: { count: -1 } },
-      ]).toArray(),
+      query(`
+        SELECT language AS _id, COUNT(*)::int AS count
+        FROM vulnerabilities
+        GROUP BY language
+        ORDER BY count DESC
+      `),
 
       // Average scan time
-      analyses.aggregate([
-        { $match: { status: 'completed' } },
-        {
-          $group: {
-            _id: null,
-            avgScanTime: { $avg: '$metadata.scanTimeMs' },
-            maxScanTime: { $max: '$metadata.scanTimeMs' },
-            minScanTime: { $min: '$metadata.scanTimeMs' },
-          },
-        },
-      ]).toArray(),
+      query(`
+        SELECT COALESCE(AVG(metadata_scan_time_ms), 0) AS "avgScanTime",
+               COALESCE(MAX(metadata_scan_time_ms), 0) AS "maxScanTime",
+               COALESCE(MIN(metadata_scan_time_ms), 0) AS "minScanTime"
+        FROM analyses
+        WHERE status = 'completed'
+      `),
 
       // Unique repositories
-      repositories.countDocuments(),
+      query('SELECT COUNT(*) AS count FROM repositories'),
 
-      // Breaches prevented (critical issues found)
-      repositories.aggregate([
-        {
-          $group: {
-            _id: null,
-            total: { $sum: '$stats.breachesPrevented' },
-          },
-        },
-      ]).toArray(),
+      // Breaches prevented
+      query('SELECT COALESCE(SUM(stats_breaches_prevented), 0) AS total FROM repositories'),
 
       // Daily trend (last 7 days)
-      analyses.aggregate([
-        {
-          $match: {
-            createdAt: {
-              $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-            },
-            status: 'completed',
-          },
-        },
-        {
-          $group: {
-            _id: {
-              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
-            },
-            count: { $sum: 1 },
-            vulnerabilities: { $sum: '$risk.totalIssues' },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]).toArray(),
+      query(`
+        SELECT TO_CHAR(created_at, 'YYYY-MM-DD') AS _id,
+               COUNT(*)::int AS count,
+               COALESCE(SUM(risk_total_issues), 0)::int AS vulnerabilities
+        FROM analyses
+        WHERE created_at >= $1 AND status = 'completed'
+        GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+        ORDER BY _id ASC
+      `, [sevenDaysAgo.toISOString()]),
     ]);
+
+    const totalAnalyses = parseInt(totalAnalysesRes[0].count, 10);
+    const completedAnalyses = parseInt(completedAnalysesRes[0].count, 10);
+    const failedAnalyses = parseInt(failedAnalysesRes[0].count, 10);
+    const repoCount = parseInt(repoCountRes[0].count, 10);
+    const totalBreachesPrevented = parseInt(breachesPreventedRes[0].total, 10);
 
     // Format severity breakdown
     const severityMap = {};
@@ -176,7 +165,10 @@ export async function GET(request) {
     }
 
     // Format scan time stats
-    const scanTimeStats = avgScanTime[0] || { avgScanTime: 0, maxScanTime: 0, minScanTime: 0 };
+    const scanTimeStats = avgScanTimeRes[0] || { avgScanTime: 0, maxScanTime: 0, minScanTime: 0 };
+
+    // Format recent analyses mapping
+    const recentAnalyses = recentAnalysesRes.map(mapRowToAnalysis);
 
     return NextResponse.json({
       overview: {
@@ -184,7 +176,7 @@ export async function GET(request) {
         completedAnalyses,
         failedAnalyses,
         repositoriesTracked: repoCount,
-        breachesPrevented: breachesPrevented[0]?.total || 0,
+        breachesPrevented: totalBreachesPrevented,
       },
       vulnerabilities: {
         total: Object.values(severityMap).reduce((a, b) => a + b, 0),
@@ -196,16 +188,16 @@ export async function GET(request) {
       topVulnerabilityTypes: topVulnTypes.map(v => ({
         type: v._id,
         count: v.count,
-        avgConfidence: Math.round((v.avgConfidence || 0) * 100),
+        avgConfidence: Math.round((parseFloat(v.avgConfidence) || 0) * 100),
       })),
       languageDistribution: languageStats.map(l => ({
         language: l._id,
         count: l.count,
       })),
       performance: {
-        avgScanTimeMs: Math.round(scanTimeStats.avgScanTime || 0),
-        maxScanTimeMs: Math.round(scanTimeStats.maxScanTime || 0),
-        minScanTimeMs: Math.round(scanTimeStats.minScanTime || 0),
+        avgScanTimeMs: Math.round(parseFloat(scanTimeStats.avgScanTime) || 0),
+        maxScanTimeMs: Math.round(parseFloat(scanTimeStats.maxScanTime) || 0),
+        minScanTimeMs: Math.round(parseFloat(scanTimeStats.minScanTime) || 0),
       },
       recentAnalyses,
       dailyTrend,

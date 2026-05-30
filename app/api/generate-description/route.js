@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generatePRDescription } from '@/lib/gemini';
 import { createOctokitWithPAT, getPRDiff } from '@/lib/github';
-import { getMRDiff } from '@/lib/gitlab';
 import { checkRateLimit, getClientIP, rateLimitHeaders } from '@/lib/rate-limiter';
 
 /**
@@ -32,7 +31,7 @@ export async function POST(request) {
       diff = rawDiff;
       files = rawFiles || [];
     } else if (prUrl) {
-      // Fetch from GitHub or GitLab URL
+      // Fetch from GitHub URL
       if (prUrl.includes('github.com')) {
         const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
         if (!match) {
@@ -41,16 +40,9 @@ export async function POST(request) {
         const [, owner, repo, pullNumberStr] = match;
         const octokit = createOctokitWithPAT();
         ({ diff, files } = await getPRDiff(octokit, owner, repo, parseInt(pullNumberStr, 10)));
-      } else if (prUrl.includes('gitlab.com')) {
-        const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*)\/\-\/merge_requests\/(\d+)/);
-        if (!match) {
-          return NextResponse.json({ error: 'Invalid GitLab MR URL' }, { status: 400, headers });
-        }
-        const [, projectPath, mrIidStr] = match;
-        ({ diff, files } = await getMRDiff(projectPath, parseInt(mrIidStr, 10)));
       } else {
         return NextResponse.json(
-          { error: 'Unsupported URL. Only GitHub PR and GitLab MR URLs are supported.' },
+          { error: 'Unsupported URL. Only GitHub PR URLs are supported.' },
           { status: 400, headers }
         );
       }
@@ -63,7 +55,7 @@ export async function POST(request) {
 
     if (!diff || diff.trim().length === 0) {
       return NextResponse.json(
-        { error: 'No code changes found in this PR/MR.' },
+        { error: 'No code changes found in this PR.' },
         { status: 400, headers }
       );
     }

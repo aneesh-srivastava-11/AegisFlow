@@ -1,28 +1,67 @@
 # AegisFlow — AI-Powered Security Analysis
 
-> Automatically detect vulnerabilities, hardcoded secrets, and security issues in every pull request using Gemini 2.0 Flash AI. Works with **any programming language**.
+AegisFlow is a premium, real-time, automated AI code reviewer built to inspect GitHub pull requests for security vulnerabilities, hardcoded credentials, and CVE pattern matches before code merges. Powered by Google Gemini 2.0 Flash and optimized using a high-performance Neon PostgreSQL serverless backend.
 
-## 🚀 Features
+---
 
-- **Real GitHub Integration** — Receives webhooks, posts PR review comments automatically
-- **AI-Powered Analysis** — Gemini 2.0 Flash detects 50+ vulnerability types
-- **Language Agnostic** — JavaScript, Python, Java, Go, Rust, PHP, Ruby, C++, and 20+ more
-- **Real CVE Detection** — Matches code against known CVEs (Log4Shell, prototype pollution, etc.)
-- **Live Dashboard** — Real-time analytics from MongoDB
-- **Famous Breach Showcase** — Interactive demos of real-world breaches
-- **Serverless** — Deploys to Vercel, scales automatically
+## 🚀 Features & Capabilities
 
-## 📋 Prerequisites
+- **Automated GitHub App Integration** — Subscribes to webhook events, processes pull requests in the background, and comments suggestions back on the PR.
+- **PR Summary & Auto-Changelog** — Generates a concise summary, title proposal, and code changelog for every scanned pull request to assist code reviewers.
+- **Enterprise Policy Gate Engine** — Customize quality thresholds (e.g., Block Merge on Critical/High vulnerabilities), toggle auto-approvals for clean code, and configure file paths to exclude from analysis.
+- **Token Cache Pipeline** — Implements an encrypted, short-lived cache store in Neon DB for GitHub App installation access tokens, protecting pipelines from API rate limits.
+- **Vulnerability Scanner Engine** — Recognizes over 50 vulnerability types (SQL injection, XSS, SSRF, memory leaks, RCEs, etc.) across 20+ programming languages.
+- **Universal CVE Regex Pre-Screening** — Runs sub-millisecond local pattern matching for known CVE footprints (Log4Shell, Prototype Pollution, NPM supply chain malware) to augment AI results.
+- **Manual PR Scan & Sandbox Editor** — Developers can scan direct PR links or run live code inside a browser-based Sandbox editor with instant diagnostic ratings.
+- **Analytics & History Console** — Real-time analytics dashboards presenting daily scans, severity metrics, language stats, and webhook diagnostics history.
+- **Breach Showcase Library** — Interactive educational catalog detailing famous real-world breaches, showing their vulnerable source code and how AegisFlow detects them.
 
-- [Node.js 18+](https://nodejs.org/)
-- [MongoDB Atlas](https://www.mongodb.com/atlas) free tier account
-- [Google AI Studio](https://aistudio.google.com/) Gemini API key
-- [GitHub Account](https://github.com/) for GitHub App creation
-- [Vercel Account](https://vercel.com/) for deployment
+---
 
-## ⚡ Quick Start
+## 🛠️ Tech Stack & Database Architecture
 
-### 1. Clone & Install
+AegisFlow utilizes a modern serverless stack:
+- **Frontend/Backend Routing**: Next.js (App Router)
+- **AI Model**: Google Gemini 2.0 Flash (`@google/generative-ai`)
+- **Database Engine**: **Neon serverless PostgreSQL** (`@neondatabase/serverless`)
+- **Authentication**: Firebase Authentication (Client/Admin SDK - Email & Password signup only)
+
+### Neon Database Schema
+
+To support high-performance serverless storage, the schema is structured into 9 PostgreSQL tables with optimal indexes:
+
+| Table | Columns | Indexes |
+|-------|---------|---------|
+| **`users`** | `uid` (PK), `email`, `gemini_api_key`, `github_owner`, `policy_severity_threshold`, `policy_auto_approve`, `policy_ignored_dirs`, `updated_at` | Primary Key |
+| **`installation_token_cache`** | `installation_id` (PK), `token`, `expires_at`, `updated_at` | Primary Key |
+| **`analyses`** | `id` (Serial PK), `repository_id`, `pull_request_number`, `pull_request_title`, `pull_request_author`, `pull_request_url`, `pull_request_head_sha`, `results_critical` (JSONB), `results_high` (JSONB), `results_medium` (JSONB), `results_low` (JSONB), `results_summary`, `results_recommendation`, `metadata_language_detected`, `metadata_languages_found` (JSONB), `metadata_scan_time_ms`, `metadata_files_analyzed`, `risk_score`, `risk_level`, `risk_total_issues`, `risk_breakdown` (JSONB), `status`, `source`, `error`, `created_at`, `updated_at` | `repo_date_idx`, `pr_repo_idx`, `status_idx`, `date_idx` |
+| **`repositories`** | `full_name` (PK), `owner`, `repo`, `installation_id` (BigInt), `last_analyzed_at`, `stats_total_analyses`, `stats_total_vulnerabilities`, `stats_critical_count`, `stats_high_count`, `stats_medium_count`, `stats_low_count`, `stats_breaches_prevented`, `stats_languages_analyzed` (JSONB), `created_at`, `updated_at` | Primary Key |
+| **`vulnerabilities`** | `id` (Serial PK), `type`, `severity`, `language`, `repository_id`, `pull_number`, `file`, `line`, `description`, `impact`, `fix`, `cve_reference`, `confidence`, `detected_at` | `type_severity_idx`, `language_idx`, `vuln_repo_idx`, `vuln_date_idx` |
+| **`breach_database`** | `slug` (PK), `name`, `category`, `year`, `description`, `affected_users`, `financial_impact`, `severity`, `vulnerable_code`, `language`, `detection_points` (JSONB), `cve`, `lessons` (JSONB), `what_happened`, `our_detection`, `created_at` | `breach_year_idx` |
+| **`cve_patterns`** | `id` (PK), `name`, `severity`, `description`, `languages` (JSONB), `examples` (JSONB), `cwe` | Primary Key |
+| **`webhook_logs`** | `id` (Serial PK), `delivery_id`, `event`, `source`, `status`, `repository_id`, `pull_number`, `recommendation`, `scan_time_ms`, `error`, `reason`, `received_at`, `completed_at` | `wlog_date_idx`, `wlog_source_status_idx`, `wlog_repo_idx` |
+| **`rate_limits`** | `id` (PK), `timestamps` (JSONB), `allowed`, `created_at`, `updated_at` | Primary Key |
+
+---
+
+## 🐞 Identified & Resolved Bugs
+
+1. **GitHub App Token Caching**: Webhooks originally requested installation tokens on every trigger. High commit volumes hit API rate limits. Token values are now securely stored and reused from Neon DB until expiration.
+2. **Serverless Interval Memory Leak**: Replaced background `setInterval` timers in the rate limiter with inline timestamp pruning (triggered statistically on checks) to prevent memory resource leaks in frozen serverless runs.
+3. **Missing Config Crash Protection**: Ensured invalid or missing GITHUB_APP_PRIVATE_KEY configurations output meaningful logs instead of crashing standard Node.js signature processes.
+4. **GitLab Webhook Project Namespace Bug**: Fixed incorrect payload reference mappings that recorded repository owner namespace values as `[object Object]` strings.
+5. **Firebase Client SDK Emulator Fallbacks**: Corrected missing mock definitions in firebase auth context classes for local development settings.
+
+---
+
+## ⚡ Prerequisites & Setup
+
+1. **Google Gemini API Key**: Generate a free-tier key in [Google AI Studio](https://aistudio.google.com/).
+2. **Neon Database URL**: Create a free PostgreSQL cluster in [Neon Console](https://neon.tech/) and grab the connection URL.
+3. **Firebase Credentials**: Set up email & password provider auth inside your Firebase project.
+4. **GitHub App Details**: Create a GitHub App mapping events to your AegisFlow webhook route.
+
+### Clone & Dependencies Installation
 
 ```bash
 git clone https://github.com/your-username/code-review-ai.git
@@ -30,161 +69,57 @@ cd code-review-ai
 npm install
 ```
 
-### 2. Set Up Environment Variables
+### Environment Configuration
+
+Copy `.env.example` into `.env.local` and populate the fields:
 
 ```bash
-cp .env.example .env.local
+# Database connection (Neon Postgres)
+DATABASE_URL=postgresql://user:password@ep-cool-snowflake-a5xxxxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+
+# AI Configuration
+GEMINI_API_KEY=AIzaSyD-xxx...
+
+# Local Development Overrides
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Optional: GitHub Personal Access Token (for manual local tests)
+GITHUB_TOKEN=ghp_xxx...
 ```
 
-Edit `.env.local` with your credentials:
+### Database Initialization & Seeding
 
-| Variable | Description | Where to Get |
-|----------|-------------|--------------|
-| `MONGODB_URI` | MongoDB Atlas connection string | [MongoDB Atlas](https://www.mongodb.com/atlas) |
-| `GEMINI_API_KEY` | Google Gemini API key | [AI Studio](https://aistudio.google.com/apikey) |
-| `GITHUB_APP_ID` | GitHub App ID | GitHub Settings → Developer Settings → GitHub Apps |
-| `GITHUB_APP_PRIVATE_KEY` | GitHub App private key (PEM) | Download when creating the GitHub App |
-| `WEBHOOK_SECRET` | Webhook signature secret | `openssl rand -hex 32` |
-| `GITHUB_TOKEN` | Personal access token (optional) | GitHub Settings → Developer Settings → PAT |
-| `NEXT_PUBLIC_APP_URL` | Your deployed URL | Your Vercel URL |
+Deploy schemas and seed datasets automatically:
 
-### 3. Create a GitHub App
+1. Start development server:
+   ```bash
+   npm run dev
+   ```
+2. Run connection tests:
+   ```bash
+   node scripts/test-db.js
+   ```
+3. Seeding mock user (for local testing credentials: `test1@test.com` / `test1234`):
+   ```bash
+   node scripts/seed-test-user.js
+   ```
+4. Perform one-click database tables setup by logging in as Admin and triggering `/api/setup` (or visit the `/install` page).
 
-1. Go to **GitHub Settings → Developer Settings → GitHub Apps → New GitHub App**
-2. Set the webhook URL to `https://your-app.vercel.app/api/github/webhook`
-3. Permissions needed:
-   - **Pull requests**: Read & Write
-   - **Contents**: Read
-   - **Metadata**: Read
-4. Subscribe to events: **Pull request**
-5. Generate a private key and download it
-6. Install the app on your repositories
+---
 
-### 4. Run Locally
-
-```bash
-npm run dev
-```
-
-Visit `http://localhost:3000` to see the app.
-
-### 5. Deploy to Vercel
-
-```bash
-npx vercel --prod
-```
-
-Or connect your GitHub repo to Vercel for automatic deployments.
-
-Set all environment variables in Vercel Dashboard → Settings → Environment Variables.
-
-### 6. Initialize Database
-
-After deploying, visit `/install` and click "Initialize Database" to create MongoDB indexes.
-
-## 🏗️ Project Structure
-
-```
-code-review-ai/
-├── app/
-│   ├── api/
-│   │   ├── github/webhook/route.js   # GitHub webhook handler
-│   │   ├── analyze/route.js          # Manual analysis endpoint
-│   │   ├── stats/route.js            # Dashboard analytics
-│   │   └── setup/route.js            # DB initialization
-│   ├── dashboard/page.jsx            # Analytics dashboard
-│   ├── demo/page.jsx                 # Live demo page
-│   ├── install/page.jsx              # Installation guide
-│   ├── layout.jsx                    # Root layout
-│   ├── page.jsx                      # Landing page
-│   └── globals.css                   # Design system
-├── components/
-│   ├── AnalysisResults.jsx           # Results display
-│   ├── BreachShowcase.jsx            # Famous breaches
-│   ├── CodeDiffViewer.jsx            # Code diff display
-│   ├── InstallButton.jsx             # GitHub App install
-│   └── VulnerabilityCard.jsx         # Vulnerability details
-├── lib/
-│   ├── mongodb.js                    # Database connection
-│   ├── gemini.js                     # AI analysis engine
-│   ├── github.js                     # GitHub API wrapper
-│   ├── webhook-handler.js            # Webhook processing
-│   ├── vulnerability-detector.js     # Detection logic
-│   └── prompts/
-│       ├── security-analysis.js      # Gemini prompts
-│       ├── language-configs.js       # Language patterns
-│       └── cve-database.js           # CVE patterns
-├── data/
-│   ├── famous-breaches.json          # Real breach examples
-│   └── cve-patterns.json             # Vulnerability patterns
-├── vercel.json                       # Vercel config
-└── .env.example                      # Environment template
-```
-
-## 🔒 API Endpoints
+## 🛡️ API Endpoints Reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/github/webhook` | Receives GitHub webhook events |
-| GET | `/api/github/webhook` | Health check |
-| POST | `/api/analyze` | Manual code/PR analysis |
-| GET | `/api/stats` | Dashboard statistics |
-| GET | `/api/setup` | GitHub App manifest |
-| POST | `/api/setup` | Initialize DB indexes |
+| **POST** | `/api/github/webhook` | Receives, verifies signatures, and processes GitHub pull request reviews |
+| **POST** | `/api/analyze` | Triggers a manual GitHub PR link review or a sandbox editor code review |
+| **GET** | `/api/stats` | Returns real-time metrics, severities, daily scan trends, and performance metrics |
+| **GET** | `/api/analyses` | Retrieves paginated listing of completed PR reviews |
+| **GET** | `/api/webhook-logs` | Provides diagnostic tracking history for webhooks |
+| **POST** | `/api/setup` | Initializes Neon tables, custom indexes, and seeds famous breaches and CVE patterns |
 
-## 🧪 Testing
-
-### Test the webhook locally
-
-Use [smee.io](https://smee.io/) to forward GitHub webhooks to localhost:
-
-```bash
-npx smee-client --url https://smee.io/YOUR_CHANNEL --target http://localhost:3000/api/github/webhook
-```
-
-### Test manual analysis
-
-```bash
-curl -X POST http://localhost:3000/api/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"code": "const password = \"admin123\";", "language": "JavaScript"}'
-```
-
-### Test PR analysis
-
-```bash
-curl -X POST http://localhost:3000/api/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"prUrl": "https://github.com/owner/repo/pull/1"}'
-```
-
-## 📊 MongoDB Collections
-
-| Collection | Purpose |
-|------------|---------|
-| `analyses` | Every PR analysis result with risk scores |
-| `repositories` | Tracked repos with aggregate stats |
-| `vulnerabilities` | Individual vulnerability records |
-| `breach_database` | Famous breach examples |
-
-## 🛡️ Supported Vulnerability Types
-
-- Hardcoded Secrets (API keys, passwords, tokens)
-- SQL / NoSQL / Command Injection
-- Cross-Site Scripting (XSS)
-- Path Traversal
-- Insecure Deserialization
-- SSRF (Server-Side Request Forgery)
-- CSRF Issues
-- Authentication Bypass
-- Weak Cryptography
-- Race Conditions
-- Prototype Pollution
-- Memory Safety Issues
-- Insecure Dependencies
-- Supply Chain Attacks
-- And 30+ more...
+---
 
 ## 📄 License
 
-MIT
+MIT License.
